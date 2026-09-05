@@ -8,5 +8,20 @@ A fast SSH client for you and your AI agents. Windows · macOS · Linux.
 
 **[Download](https://termal.in/download/)** · [Docs](https://termal.in/docs/) · [Blog](https://termal.in/blog/) · [Telegram](https://t.me/termalin)
 
+## Install
+
+```sh
+# macOS (Homebrew)
+brew install --cask termalinapp/termalin/termalin
+
+# Windows (Scoop)
+scoop bucket add termalin https://github.com/termalinapp/scoop-termalin
+scoop install termalin
+```
+
+Installers for every OS: [termal.in/download](https://termal.in/download/).
+
+## About this repository
+
 This repository is the public home for Termalin: release notes and the issue tracker.
 Found a bug or want a feature? [Open an issue](../../issues).
