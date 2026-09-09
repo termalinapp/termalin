@@ -3,6 +3,7 @@
 A fast SSH client for you and your AI agents. Windows · macOS · Linux.
 
 - Tabbed terminal, SFTP browser with a built-in editor, dual-pane file manager
+- Database client for 13 engines (PostgreSQL, MySQL, MongoDB, Redis, ClickHouse, SQL Server and more) - browse, query and edit over SSH or a Connector, no exposed ports
 - End-to-end encrypted sync — the server only ever stores ciphertext
 - Built-in MCP server: your agent can SSH too, while you watch every session live — keys never touch disk
 
