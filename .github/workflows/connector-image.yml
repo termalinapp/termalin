@@ -1,0 +1,105 @@
+# The official Docker image of the Termalin Connector:
+# ghcr.io/termalinapp/termalin-connector:<version> and :latest.
+#
+# Built only from the signed release binaries published at
+# https://termal.in/download/ (the same files the installers and auto-update
+# use): each is checked against the published manifest's SHA-256 and against
+# its own signature with the release key below before it goes into the image.
+# Nothing else is downloaded into the image. Runs daily, on demand, and when a
+# Connector release asks for it (repository_dispatch "connector-release");
+# a version that already has an image is skipped unless forced.
+
+name: Connector image
+
+on:
+  schedule:
+    - cron: "17 6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Build even if this version already has an image"
+        type: boolean
+        default: false
+  repository_dispatch:
+    types: [connector-release]
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: connector-image
+  cancel-in-progress: false
+
+env:
+  BASE: https://termal.in/download
+  IMAGE: ghcr.io/termalinapp/termalin-connector
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Latest Connector version
+        id: v
+        run: |
+          set -euo pipefail
+          curl -fsSL "$BASE/termalin-agent-manifest.json" -o manifest.json
+          v=$(jq -r '.files["termalin-agent-x86_64"].version' manifest.json)
+          v2=$(jq -r '.files["termalin-agent-aarch64"].version' manifest.json)
+          [ "$v" = "$v2" ] || { echo "x86_64 is $v but aarch64 is $v2 - waiting for both"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Connector $v"
+
+      - name: Log in to GitHub Container Registry
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Already built?
+        id: have
+        run: |
+          if [ "${{ inputs.force }}" != "true" ] && docker manifest inspect "$IMAGE:${{ steps.v.outputs.version }}" >/dev/null 2>&1; then
+            echo "skip=true" >> "$GITHUB_OUTPUT"; echo "$IMAGE:${{ steps.v.outputs.version }} exists - nothing to do"
+          else
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download and verify the signed binaries
+        if: steps.have.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          cat > pub.pem <<'EOF'
+          -----BEGIN PUBLIC KEY-----
+          MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEIYcmOQXDNUyqnyv3/mEdRZ1aBE94
+          Dtmv+jNYFKKZvEfwkXi+XPnlcW8VAovqkCfQWqLv2u+R8TbZhdnmDOXwlw==
+          -----END PUBLIC KEY-----
+          EOF
+          sed -i 's/^ *//' pub.pem
+          mkdir -p connector-image/bin
+          for f in termalin-agent-x86_64 termalin-agent-aarch64; do
+            curl -fsSL "$BASE/$f" -o "connector-image/bin/$f"
+            curl -fsSL "$BASE/$f.sig" -o "$f.sig"
+            want=$(jq -r --arg f "$f" '.files[$f].sha256' manifest.json)
+            got=$(sha256sum "connector-image/bin/$f" | cut -d' ' -f1)
+            [ "$want" = "$got" ] || { echo "$f: SHA-256 $got is not the manifest's $want"; exit 1; }
+            tr -d ' \r\n\t' < "$f.sig" | openssl base64 -d -A > "$f.der"
+            openssl dgst -sha256 -verify pub.pem -signature "$f.der" "connector-image/bin/$f"
+          done
+
+      - uses: docker/setup-qemu-action@v3
+        if: steps.have.outputs.skip != 'true'
+      - uses: docker/setup-buildx-action@v3
+        if: steps.have.outputs.skip != 'true'
+
+      - name: Build and push
+        if: steps.have.outputs.skip != 'true'
+        run: |
+          set -euo pipefail
+          v="${{ steps.v.outputs.version }}"
+          docker buildx build connector-image \
+            --platform linux/amd64,linux/arm64 \
+            --label org.opencontainers.image.version="$v" \
+            --label org.opencontainers.image.revision="${{ github.sha }}" \
+            -t "$IMAGE:$v" -t "$IMAGE:latest" \
+            --push
+          echo "pushed $IMAGE:$v and :latest"

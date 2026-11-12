@@ -22,6 +22,16 @@ scoop install termalin
 
 Installers for every OS: [termal.in/download](https://termal.in/download/).
 
+## Connector in Docker
+
+The Termalin Connector lets Termalin (and AI apps through its hosted MCP) reach an SSH server, an internal site or a desktop on a private network without opening a port. The official image runs it on anything with Docker: a NAS, a home server, a MikroTik router with containers (arm64/x86), Kubernetes or ECS.
+
+```sh
+docker run -d --name termalin-connector --restart unless-stopped   -v termalin:/data   -e TERMALIN_TOKEN=<token from termal.in/account, Connectors -> Add>   -e TERMALIN_TARGET=192.168.1.10:22 -e TERMALIN_USER=admin   ghcr.io/termalinapp/termalin-connector
+```
+
+On first start it enrols with the token and prints one line to add to `~/.ssh/authorized_keys` of the login user on the target server (`docker logs termalin-connector`, or `docker exec termalin-connector termalin-agent check`). Later starts just connect. The image is about 4 MB, runs as a non-root user and is built here ([workflow](.github/workflows/connector-image.yml)) only from the signed release binaries on termal.in, each checked against its signature.
+
 ## About this repository
 
 This repository is the public home for Termalin: release notes and the issue tracker.
