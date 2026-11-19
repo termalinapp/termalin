@@ -76,7 +76,7 @@ jobs:
           EOF
           sed -i 's/^ *//' pub.pem
           mkdir -p connector-image/bin
-          for f in termalin-agent-x86_64 termalin-agent-aarch64; do
+          for f in termalin-agent-x86_64 termalin-agent-aarch64 termalin-agent-armv7 termalin-agent-armv6 termalin-agent-i686 termalin-agent-riscv64; do
             curl -fsSL "$BASE/$f" -o "connector-image/bin/$f"
             curl -fsSL "$BASE/$f.sig" -o "$f.sig"
             want=$(jq -r --arg f "$f" '.files[$f].sha256' manifest.json)
@@ -97,7 +97,7 @@ jobs:
           set -euo pipefail
           v="${{ steps.v.outputs.version }}"
           docker buildx build connector-image \
-            --platform linux/amd64,linux/arm64 \
+            --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386,linux/riscv64 \
             --label org.opencontainers.image.version="$v" \
             --label org.opencontainers.image.revision="${{ github.sha }}" \
             -t "$IMAGE:$v" -t "$IMAGE:latest" \

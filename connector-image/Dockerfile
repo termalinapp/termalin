@@ -5,8 +5,12 @@
 #
 #   bin/termalin-agent-x86_64     (linux/amd64)
 #   bin/termalin-agent-aarch64    (linux/arm64)
+#   bin/termalin-agent-armv7      (linux/arm/v7: Raspberry Pi 2/3 on a 32-bit OS)
+#   bin/termalin-agent-armv6      (linux/arm/v6: Raspberry Pi 1 and Zero)
+#   bin/termalin-agent-i686       (linux/386)
+#   bin/termalin-agent-riscv64    (linux/riscv64)
 #
-#   docker buildx build --platform linux/amd64,linux/arm64 -t ghcr.io/<owner>/termalin-connector connector-image
+#   docker buildx build --platform linux/amd64,linux/arm64,linux/arm/v7,linux/arm/v6,linux/386,linux/riscv64 -t ghcr.io/<owner>/termalin-connector connector-image
 #
 # The Connector runs as uid 10001 and keeps its config in the /data volume.
 # First start with TERMALIN_TOKEN enrols; later starts just connect. See
@@ -16,13 +20,18 @@
 # certificates, a passwd entry for uid 10001 and the /data folder it owns.
 FROM --platform=$BUILDPLATFORM alpine:3.20 AS prep
 ARG TARGETARCH
+ARG TARGETVARIANT
 COPY bin/ /bin-in/
 RUN set -e; \
     apk add --no-cache ca-certificates >/dev/null; \
-    case "$TARGETARCH" in \
+    case "$TARGETARCH$TARGETVARIANT" in \
       amd64) f=termalin-agent-x86_64 ;; \
-      arm64) f=termalin-agent-aarch64 ;; \
-      *) echo "no Connector build for $TARGETARCH" >&2; exit 1 ;; \
+      arm64*) f=termalin-agent-aarch64 ;; \
+      armv7) f=termalin-agent-armv7 ;; \
+      armv6) f=termalin-agent-armv6 ;; \
+      386) f=termalin-agent-i686 ;; \
+      riscv64) f=termalin-agent-riscv64 ;; \
+      *) echo "no Connector build for $TARGETARCH$TARGETVARIANT" >&2; exit 1 ;; \
     esac; \
     install -D -m 0755 "/bin-in/$f" /out/usr/local/bin/termalin-agent; \
     mkdir -p /out/etc/ssl/certs /out/data /out/tmp; \
